@@ -1,0 +1,5 @@
+MSMARCO-psg/
+mlruns/
+logs/
+Dataset/
+__pycache__/
