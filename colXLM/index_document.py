@@ -7,6 +7,8 @@ from colXLM.utils.utils import load_checkpoint
 import pickle as pkl
 
 
+
+
 colbert = ColBERT.from_pretrained('bert-base-uncased',
                                       query_maxlen=32,
                                       doc_maxlen=180,
