@@ -18,7 +18,7 @@ def manage_checkpoints(args, colbert, optimizer, batch_idx):
     if not os.path.exists(path):
         os.mkdir(path)
 
-    if batch_idx % 2000 == 0:
+    if batch_idx % 1000 == 0:
         name = os.path.join(path, "colbert.dnn")
         save_checkpoint(name, 0, batch_idx, colbert, optimizer, arguments)
 

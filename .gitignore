@@ -3,3 +3,5 @@ mlruns/
 logs/
 Dataset/
 __pycache__/
+nohup.out
+indexes/
