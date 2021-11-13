@@ -13,7 +13,7 @@ from colXLM.training.lazy_batcher import LazyBatcher
 from colXLM.training.eager_batcher import EagerBatcher
 from colXLM.parameters import DEVICE
 
-from colXLM.modeling.colbert import ColBERT
+from colXLM.modeling.colbert import ColBERT,ColXLM
 from colXLM.utils.utils import print_message
 from colXLM.training.utils import print_progress, manage_checkpoints
 
@@ -23,15 +23,6 @@ def train(args):
     random.seed(12345)
     np.random.seed(12345)
     torch.manual_seed(12345)
-    if args.distributed:
-        torch.cuda.manual_seed_all(12345)
-
-    if args.distributed:
-        assert args.bsize % args.nranks == 0, (args.bsize, args.nranks)
-        assert args.accumsteps == 1
-        args.bsize = args.bsize // args.nranks
-
-        print("Using args.bsize =", args.bsize, "(per process) and args.accumsteps =", args.accumsteps)
 
     if args.lazy:
         reader = LazyBatcher(args, (0 if args.rank == -1 else args.rank), args.nranks)
@@ -41,7 +32,7 @@ def train(args):
     if args.rank not in [-1, 0]:
         torch.distributed.barrier()
 
-    colbert = ColBERT.from_pretrained('bert-base-uncased',
+    colbert = ColBERT.from_pretrained('bert-base-multilingual-uncased',
                                       query_maxlen=args.query_maxlen,
                                       doc_maxlen=args.doc_maxlen,
                                       dim=args.dim,

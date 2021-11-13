@@ -1,4 +1,4 @@
-from colXLM.modeling.colbert import ColBERT
+from colXLM.modeling.colbert import ColBERT,ColXLM
 from colXLM.modeling.inference import ModelInference
 from colXLM.utils.utils import load_checkpoint
 import pickle as pkl
@@ -9,33 +9,19 @@ def get_embedding(document,inference):
     embs = inference.docFromText([document])[0]
     return embs
 
-colbert = ColBERT.from_pretrained('bert-base-uncased',
+colbert = ColBERT.from_pretrained('bert-base-multilingual-uncased',
                                       query_maxlen=32,
                                       doc_maxlen=180,
                                       dim=128,
                                       similarity_metric="l2",
                                       mask_punctuation=True)
+
 colbert = colbert.to("cuda")
 print("#> Loading model checkpoint.")
 checkpoint = load_checkpoint("/data/jiayu_xiao/project/wzh/ColXLM/MSMARCO-psg/train.py/msmarco.psg.l2/checkpoints/colbert.dnn", colbert, do_print=True)
 colbert.eval()
 
 inference = ModelInference(colbert, amp=-1)
-
-'''
-output_path = os.path.join(index_path, "{}.pt".format(batch_idx))
-output_sample_path = os.path.join(index_path, "{}.sample".format(batch_idx))
-doclens_path = os.path.join(index_path, 'doclens.{}.json'.format(batch_idx))
-
-        # Save the embeddings.
-self.indexmgr.save(embs, output_path)
-self.indexmgr.save(embs[torch.randint(0, high=embs.size(0), size=(embs.size(0) // 20,))], output_sample_path)
-
-        # Save the doclens.
-        with open(doclens_path, 'w') as output_doclens:
-            ujson.dump(doclens, output_doclens)
-'''
-
 
 Doc = open("./colXLM/Dataset/documents.tsv")
 doclens = []
@@ -58,7 +44,3 @@ doclens_path = os.path.join("/data/jiayu_xiao/project/wzh/ColXLM/colXLM/indexes"
 torch.save(doc_emb_concat, output_path)
 with open(doclens_path, 'w') as output_doclens:
             ujson.dump(doclens, output_doclens)
-exit()
-
-with open("./colXLM/Dataset/doc_emb.pkl","wb") as file:
-    pkl.dump(doc_emb,file)

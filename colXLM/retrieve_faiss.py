@@ -1,19 +1,15 @@
-import pickle as pkl
-import numpy as np
-from colXLM.modeling.colbert import ColBERT
-from colXLM.modeling.tokenization import QueryTokenizer, DocTokenizer
-from colXLM.utils.amp import MixedPrecisionManager
-from colXLM.parameters import DEVICE
-from colXLM.modeling.inference import ModelInference
-from colXLM.utils.utils import load_checkpoint
-import pickle as pkl
 import faiss
 from itertools import accumulate
 import ujson
 import time
 import torch
-k = 20
 
+from colXLM.modeling.colbert import ColBERT,ColXLM
+from colXLM.parameters import DEVICE
+from colXLM.modeling.inference import ModelInference
+from colXLM.utils.utils import load_checkpoint
+
+k = 20
 doclens = ujson.load(open("/data/jiayu_xiao/project/wzh/ColXLM/colXLM/indexes/doclens.0.json"))
 
 def doc_index(doclens):
@@ -37,7 +33,7 @@ def calc_score(query_emb, docids):
 
 
 query = "androgen receptor refine"
-colbert = ColBERT.from_pretrained('bert-base-uncased',
+colbert = ColBERT.from_pretrained('bert-base-multilingual-uncased',
                                       query_maxlen=32,
                                       doc_maxlen=180,
                                       dim=128,

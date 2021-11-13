@@ -1,12 +1,12 @@
 import torch
 
-from transformers import BertTokenizerFast
+from transformers import BertTokenizerFast,XLMTokenizer
 from colXLM.modeling.tokenization.utils import _split_into_batches
 
 
 class QueryTokenizer():
     def __init__(self, query_maxlen):
-        self.tok = BertTokenizerFast.from_pretrained('bert-base-uncased')
+        self.tok = BertTokenizerFast.from_pretrained('bert-base-multilingual-uncased')
         self.query_maxlen = query_maxlen
 
         self.Q_marker_token, self.Q_marker_token_id = '[Q]', self.tok.convert_tokens_to_ids('[unused0]')
@@ -14,7 +14,8 @@ class QueryTokenizer():
         self.sep_token, self.sep_token_id = self.tok.sep_token, self.tok.sep_token_id
         self.mask_token, self.mask_token_id = self.tok.mask_token, self.tok.mask_token_id
 
-        assert self.Q_marker_token_id == 1 and self.mask_token_id == 103
+        print(self.Q_marker_token_id,self.mask_token_id)
+        #assert self.Q_marker_token_id == 1 and self.mask_token_id == 103
 
     def tokenize(self, batch_text, add_special_tokens=False):
         assert type(batch_text) in [list, tuple], (type(batch_text))

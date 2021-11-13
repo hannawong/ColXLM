@@ -4,7 +4,7 @@ from colXLM.training.training import train
 
 
 def main():
-    parser = Arguments(description='Training ColBERT with <query, positive passage, negative passage> triples.')
+    parser = Arguments(description='Training ColXLM with <query, positive passage, negative passage> triples.')
 
     parser.add_model_parameters()
     parser.add_model_training_parameters()
