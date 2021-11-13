@@ -1,6 +1,10 @@
 # Cross-lingual Information Retrieval Model for Document Search
 
+
+
 ## Train Phase
+
+We continue pretraining our retrieval-oriented language models from the public XLM checkpoint. Therefore, our cross-lingual LM is implicitly pretrained with three objectives(MLM, TLM, RR)
 
 ```sh
 CUDA_VISIBLE_DEVICES="1" \

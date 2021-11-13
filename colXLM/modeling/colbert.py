@@ -20,7 +20,7 @@ class ColBERT(BertPreTrainedModel):
         self.skiplist = {}
 
         if self.mask_punctuation:
-            self.tokenizer = BertTokenizerFast.from_pretrained("bert-base-multilingual-cased")
+            self.tokenizer = BertTokenizerFast.from_pretrained('bert-base-uncased')
             self.skiplist = {w: True
                              for symbol in string.punctuation
                              for w in [symbol, self.tokenizer.encode(symbol, add_special_tokens=False)[0]]}

@@ -28,8 +28,8 @@ def calc_similarity(query_emb, doc_emb):  ##query_emb: [32,128], doc_emb:[56,128
     return score
 
 
-query = "Androgen receptor define"
-colbert = ColBERT.from_pretrained('bert-base-uncased',
+query = "Définition du récepteur aux androgènes"
+colbert = ColBERT.from_pretrained('xlm-mlm-tlm-xnli15-1024',
                                       query_maxlen=32,
                                       doc_maxlen=180,
                                       dim=128,
@@ -63,7 +63,7 @@ for doc_key in list(doc_embeddings.keys()):
     cnt += 1
     print(cnt/length)
     score = calc_similarity(query_emb, doc_embeddings[doc_key])
-    doc_scores[doc_key] = score.item()
+    doc_scores[doc_key] = score
 
 print(sorted(doc_scores.items(), key = lambda kv:(kv[1], kv[0]),reverse=True))   
     
