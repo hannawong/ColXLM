@@ -9,7 +9,7 @@ The current search engine of Yelp is based on [NrtSearch](https://engineeringblo
 - Sensitivity to spelling errors
 - Doesn't support cross-lingual search
 
-Although Yelp rewrites the query by query expanding and spell correcting before sending it to search engine, the capacity of this method is still limited. Therefore, we intend to add a neural-network-based model trained with large amount of text to complement the lexical serach engine in ad-hoc multilingual retrieval.
+Although Yelp rewrites the query by query expansion and spelling correction before sending it to search engine, the capacity of this method is still limited. Therefore, we intend to add a neural-network-based model trained with large amount of text to complement the lexical serach engine in ad-hoc multilingual retrieval.
 
 ## Pretraining Phase
 
