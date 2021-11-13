@@ -1,16 +1,25 @@
 import faiss
 from itertools import accumulate
 import ujson
-import time
+import os
 import torch
+import time
 
-from colXLM.modeling.colbert import ColBERT,ColXLM
+from colXLM.modeling.colbert import ColBERT
 from colXLM.parameters import DEVICE
 from colXLM.modeling.inference import ModelInference
 from colXLM.utils.utils import load_checkpoint
+from colXLM.utils.parser import Arguments
 
-k = 20
-doclens = ujson.load(open("/data/jiayu_xiao/project/wzh/ColXLM/colXLM/indexes/doclens.0.json"))
+parser = Arguments(description='retrieve top k relevant documents')
+parser.add_argument('--checkpoint_path', dest='checkpoint_path', default='/data/jiayu_xiao/project/wzh/ColXLM/MSMARCO-psg/train.py/msmarco.psg.l2/checkpoints/colbert.dnn')
+parser.add_argument('--index_path',dest = 'index_path',default = '/data/jiayu_xiao/project/wzh/ColXLM/colXLM/indexes')
+parser.add_argument('--faiss_name',dest = "faiss_name",default = "faiss_l2")
+parser.add_argument('--k',dest = 'k',default = 20)
+args = parser.parse()
+
+k = int(args.k)
+BSIZE = 1 << 14
 
 def doc_index(doclens):
     dic = {}
@@ -21,55 +30,9 @@ def doc_index(doclens):
             cnt += 1
     return dic
 
-doc2index = doc_index(doclens)
-
 def get_embedding(query,inference):
     embs = inference.queryFromText([query])[0]
     return embs
-
-def calc_score(query_emb, docids):
-    Q = query_emb.contiguous().to(DEVICE)
-
-
-
-query = "androgen receptor refine"
-colbert = ColBERT.from_pretrained('bert-base-multilingual-uncased',
-                                      query_maxlen=32,
-                                      doc_maxlen=180,
-                                      dim=128,
-                                      similarity_metric="l2",
-                                      mask_punctuation=True)
-colbert = colbert.to("cuda")
-print("#> Loading model checkpoint.")
-checkpoint = load_checkpoint("/data/jiayu_xiao/project/wzh/ColXLM/MSMARCO-psg/train.py/msmarco.psg.l2/checkpoints/colbert.dnn", colbert, do_print=True)
-colbert.eval()
-inference = ModelInference(colbert, amp=-1)
-index = faiss.read_index("/data/jiayu_xiao/project/wzh/ColXLM/colXLM/indexes/faiss_l2")
-
-
-query_emb = get_embedding(query,inference).cpu().numpy()
-
-start = time.time()
-D, I = index.search(query_emb, k//2)         
-
-document_set = set()
-for i in range(I.shape[0]):
-    for j in range(I.shape[1]):
-        document_set.add(doc2index[I[i][j]])
-
-end = time.time()
-print(end-start)
-
-#################################################################################
-doc_tensor = torch.load("/data/jiayu_xiao/project/wzh/ColXLM/colXLM/indexes/0.pt")
-
-import torch
-
-from itertools import accumulate
-from colXLM.parameters import DEVICE
-
-BSIZE = 1 << 14
-
 
 class IndexRanker():
     def __init__(self, tensor, doclens):
@@ -223,14 +186,52 @@ def torch_percentile(tensor, p):
 
     return tensor.kthvalue(int(p * tensor.size(0) / 100.0)).values.item()
 
-doc_tensor_ = torch.zeros(doc_tensor.shape[0] + 512, doc_tensor.shape[1], dtype=torch.float16)
-doc_tensor_[:doc_tensor.shape[0]] = doc_tensor
-indexranker = IndexRanker(doc_tensor,doclens)
-query_emb = torch.tensor(query_emb)
-query_emb = query_emb.unsqueeze(0)
-query_emb = query_emb.permute(0,2,1)
 
-score = indexranker.rank(query_emb,list(document_set))
-score_sorter = torch.tensor(score).sort(descending=True)
-pids = torch.tensor(list(document_set))[score_sorter.indices].tolist()
-print(pids[:20])
+def get_topk(query,inference,index,doc2index,doc_tensor,doclens): ## TODO: support batch search
+    start = time.time()
+    query_emb = get_embedding(query,inference).cpu().numpy()
+    D, I = index.search(query_emb, k//2)         
+
+    document_set = set()
+    for i in range(I.shape[0]):
+        for j in range(I.shape[1]):
+            document_set.add(doc2index[I[i][j]])
+
+    doc_tensor_ = torch.zeros(doc_tensor.shape[0] + 512, doc_tensor.shape[1], dtype=torch.float16)
+    doc_tensor_[:doc_tensor.shape[0]] = doc_tensor
+    indexranker = IndexRanker(doc_tensor,doclens)
+    query_emb = torch.tensor(query_emb)
+    query_emb = query_emb.unsqueeze(0)
+    query_emb = query_emb.permute(0,2,1)
+
+    score = indexranker.rank(query_emb.cuda(),list(document_set))
+    score_sorter = torch.tensor(score).sort(descending=True)
+    pids = torch.tensor(list(document_set))[score_sorter.indices].tolist()
+    end = time.time()
+    print("time elapse during retrieval:",end-start,"s")
+    return pids[:k]
+
+def main():
+    doclens = ujson.load(open(os.path.join(args.index_path,'doclens.0.json')))
+    doc_tensor = torch.load(os.path.join(args.index_path,"0.pt"))
+    index = faiss.read_index("/data/jiayu_xiao/project/wzh/ColXLM/colXLM/indexes/faiss_l2")
+
+    doc2index = doc_index(doclens)
+    colbert = ColBERT.from_pretrained('bert-base-multilingual-uncased',
+                                        query_maxlen=32,
+                                        doc_maxlen=180,
+                                        dim=128,
+                                        similarity_metric="l2",
+                                        mask_punctuation=True)
+    colbert = colbert.to("cuda")
+    print("#> Loading model checkpoint.")
+    load_checkpoint(args.checkpoint_path, colbert, do_print=True)
+    colbert.eval()
+    inference = ModelInference(colbert, amp=-1)
+    query = "androgen receptor refine"
+    pids = get_topk(query,inference,index,doc2index,doc_tensor,doclens)
+    print(pids)
+
+
+main()
+    

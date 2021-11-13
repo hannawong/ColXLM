@@ -2,33 +2,27 @@
 
 
 
-## Train Phase
+## Pretraining Phase
 
 We continue pretraining our retrieval-oriented language models from the public XLM checkpoint. Therefore, our cross-lingual LM is implicitly pretrained with three objectives(MLM, TLM, RR)
 
 ```sh
-CUDA_VISIBLE_DEVICES="1" \
-python -m \
-colXLM.train --doc_maxlen 180 --mask-punctuation --bsize 32 --accum 1 \
---triples /data/jiayu_xiao/project/wzh/ColBERT_/triples.train.small.tsv \
---root /data/jiayu_xiao/project/wzh/ColXLM --experiment MSMARCO-psg --similarity l2 --run msmarco.psg.l2 --maxsteps 1000
+sh train.sh
 ```
 
-## indexing document 
+## Indexing Phase
+In this step, we use the model trained in the pretraining phase to embed every document, and then store the embedding on disk. 
 
 ```sh
-CUDA_VISIBLE_DEVICES="1" \
-python -m \
-colXLM.index --doc_maxlen 180 --mask-punctuation --bsize 256 \
---checkpoint /data/jiayu_xiao/project/wzh/ColXLM/MSMARCO-psg/train.py/msmarco.psg.l2/checkpoints/colbert.dnn \
---collection /data/jiayu_xiao/project/wzh/ColXLM/colXLM/Dataset/Documents.tsv \
---index_root /data/jiayu_xiao/project/wzh/ColXLM/colXLM/indexing/indexes --index_name MSMARCO.L2.32x200k \
---root /data/jiayu_xiao/project/wzh/ColXLM --experiment MSMARCO-psg
+sh index_document.sh
 ```
 
-## Faiss Indexing for retrieval
+We typically recommend that you use ColXLM for **end-to-end** retrieval, where it directly finds its top-k passages from the full collection. For this, you need FAISS indexing.
 
-python -m colXLM.index_faiss \
---index_root /data/jiayu_xiao/project/wzh/ColXLM/colXLM/indexing/indexes --index_name MSMARCO.L2.32x200k \
---partitions 32768 --sample 0.3 \
---root /data/jiayu_xiao/project/wzh/ColXLM --experiment MSMARCO-psg
+#### FAISS Indexing for end-to-end retrieval
+
+For end-to-end retrieval, you should index the document representations into [FAISS](https://github.com/facebookresearch/faiss).
+
+```sh 
+sh index_faiss.sh
+```

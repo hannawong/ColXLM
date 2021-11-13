@@ -2,7 +2,6 @@ import os
 import sys
 import time
 import __main__
-import traceback
 import mlflow
 
 import colXLM.utils.distributed as distributed
