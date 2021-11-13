@@ -35,3 +35,7 @@ For end-to-end retrieval, you should index the document representations into [FA
 ```sh 
 sh index_faiss.sh
 ```
+
+## Contact us
+Zihan Wang: zw2782@columbia.edu
+Columbia Database Group: https://cudbg.github.io/
