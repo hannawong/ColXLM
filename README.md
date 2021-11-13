@@ -3,7 +3,7 @@
 Hi there! 👋 In this repository, we develop a Cross-lingual Information Retrieval model that support 15 different languages, and it will be used on Yelp search engine after further online experiments. 
 
 ## Background
-The current search engine of Yelp is based on [NrtSearch](https://engineeringblog.yelp.com/2021/09/nrtsearch-yelps-fast-scalable-and-cost-effective-search-engine.html), a Lucene-based search engine. However, inverted index-based lexical matching falls short in several key aspects: 
+The current search engine of Yelp is based on [NrtSearch](https://engineeringblog.yelp.com/2021/09/nrtsearch-yelps-fast-scalable-and-cost-effective-search-engine.html). However, inverted index-based lexical matching on Lucene-based search engine such as NrtSearch falls short in several key aspects: 
 - Lack of understanding of hypernyms, synonyms, and antonyms. For example, *"sneaker"* might match the intent of the query *"running shoes"*, but may not be retrieved.
 - Fragility of morphological variants (e.g. *woman* vs. *women*)
 - Sensitivity to spelling errors
