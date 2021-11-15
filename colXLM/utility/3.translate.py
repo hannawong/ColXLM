@@ -2,10 +2,11 @@ import re
 import html
 from urllib import parse
 import requests
+import time
 
 GOOGLE_TRANSLATE_URL = 'http://translate.google.cn/m?q=%s&tl=%s&sl=%s'
-TRAIN_PATH = "/data/jiayu_xiao/project/wzh/ColBERT_/triples.train.small.tsv"
-OUT_TRAIN_PATH = "/data/jiayu_xiao/project/wzh/ColXLM/colXLM/Dataset/triples.train.tsv"
+TRAIN_PATH = "/data1/jiayu_xiao/project/datasets/Dataset/triples.train.small.tsv"
+OUT_TRAIN_PATH = "/data1/jiayu_xiao/project/datasets/Dataset/triples.train.fr.tsv"
 
 def translate(text, to_language="auto", text_language="auto"):
 
@@ -22,14 +23,23 @@ def translate(text, to_language="auto", text_language="auto"):
 
 Train = open(TRAIN_PATH,"r")
 OUT_train = open(OUT_TRAIN_PATH,"w")
-for i in range(100000):
+for i in range(10000):
     print(i)
-    line = Train.readline().split("\t")
-    query = line[0]
-    doc1 = line[1]
-    doc2 = line[2]
-    query_fr = translate(query, "fr","en")
-    print(query_fr)
-    OUT_train.write(query_fr+"\t"+doc1+"\t"+doc2)
+    query_tot = ""
+    doc1_list = []
+    doc2_list = []
+    for j in range(32):
+        line = Train.readline().split("\t")
+        query_tot += line[0]+'\n'
+        doc1 = line[1]
+        doc2 = line[2]
+        doc1_list.append(doc1)
+        doc2_list.append(doc2)
+
+    query_fr = translate(query_tot, "fr","en").split("\n")
+    time.sleep(1)
+
+    for j in range(32):
+        OUT_train.write(query_fr[j]+"\t"+doc1_list[j]+"\t"+doc2_list[j])
 
 #print(translate("how many calories a day are lost breastfeeding ", "fr","en")) #汉语转英语
