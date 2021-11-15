@@ -7,7 +7,7 @@ The current search engine of Yelp is based on [NrtSearch](https://engineeringblo
 - Lack of understanding of hypernyms, synonyms, and antonyms. For example, *"sneaker"* might match the intent of the query *"running shoes"*, but may not be retrieved.
 - Fragility of morphological variants (e.g. *woman* vs. *women*)
 - Sensitivity to spelling errors
-- Doesn't support cross-lingual search
+- Inability to support cross-lingual search
 
 Although Yelp rewrites the query by query expansion and spelling correction before sending it to search engine, the capacity of this method is still limited. Therefore, we intend to add a neural-network-based model trained with large amount of text to complement the lexical serach engine in ad-hoc multilingual retrieval.
 
@@ -38,4 +38,5 @@ sh index_faiss.sh
 
 ## Contact us
 Zihan Wang: zw2782@columbia.edu
+
 Columbia Database Group: https://cudbg.github.io/
