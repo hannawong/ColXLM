@@ -21,6 +21,14 @@ Mask some query tokens and ask the model to predict the masked tokens based on q
 - Relevance Ranking Task (RR)
 Given a query and several *foreign* documents, the model is asked to rank these documents based on levels of relevance. 
 
+<p align="center">
+  <img align="center" src="docs/images/ColBERT-Framework-MaxSim-W370px.png" />
+</p>
+<p align="center">
+  <b>Figure 1:</b> ColBERT's late interaction, efficiently scoring the fine-grained similarity between a queries and a passage.
+</p>
+
+
 #### Pretraining Dataset Construction
 We use an in-house translation model to translate queries to 15 different languages. 
 The ColXLM-15 model includes these languages: en-fr-es-de-it-pt-nl-sv-pl-ru-ar-zh-ja-ko-hi. These abbrievations are represented by [ISO 639-2 Code](https://www.loc.gov/standards/iso639-2/php/code_list.php)
