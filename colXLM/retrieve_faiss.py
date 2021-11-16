@@ -187,16 +187,21 @@ def torch_percentile(tensor, p):
     return tensor.kthvalue(int(p * tensor.size(0) / 100.0)).values.item()
 
 
-def get_topk(query,inference,index,doc2index,doc_tensor,doclens): ## TODO: support batch search
+def get_topk(query,inference,index,doc2index,doc_tensor,doclens,query_len): ## TODO: support batch search
     start = time.time()
-    query_emb = get_embedding(query,inference).cpu().numpy()
+    query_emb = get_embedding(query,inference).cpu().numpy()[:query_len]
+    freq_dic = {}
     D, I = index.search(query_emb, k//2)         
 
     document_set = set()
     for i in range(I.shape[0]):
         for j in range(I.shape[1]):
             document_set.add(doc2index[I[i][j]])
-
+            if doc2index[I[i][j]] not in freq_dic.keys():
+                freq_dic[doc2index[I[i][j]]] = 1
+            else:
+                freq_dic[doc2index[I[i][j]]] += 1
+    print(freq_dic)
     doc_tensor_ = torch.zeros(doc_tensor.shape[0] + 512, doc_tensor.shape[1], dtype=torch.float16)
     doc_tensor_[:doc_tensor.shape[0]] = doc_tensor
     indexranker = IndexRanker(doc_tensor,doclens)
@@ -228,8 +233,10 @@ def main():
     load_checkpoint(args.checkpoint_path, colbert, do_print=True)
     colbert.eval()
     inference = ModelInference(colbert, amp=-1)
-    query = "androgen receptor refine"
-    pids = get_topk(query,inference,index,doc2index,doc_tensor,doclens)
+    query = "treating tension headaches without medication"
+    tokens = inference.query_tokenizer.tok.tokenize(query)
+    print(tokens)
+    pids = get_topk(query,inference,index,doc2index,doc_tensor,doclens,len(tokens))
     print(pids)
 
 
