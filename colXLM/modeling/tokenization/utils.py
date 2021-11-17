@@ -33,6 +33,38 @@ def tensorize_triples(query_tokenizer, doc_tokenizer, queries, positives, negati
     return batches
 
 
+def tensorize_triples_qlm(query_tokenizer, doc_tokenizer, queries, positives,bsize):
+    assert len(queries) == len(positives) 
+    assert bsize is None or len(queries) % bsize == 0
+
+    N = len(queries)
+    Q_ids, Q_mask = query_tokenizer.tensorize(queries)
+    D_ids, D_mask = doc_tokenizer.tensorize(positives)
+    D_ids, D_mask = D_ids.view(2, N, -1), D_mask.view(2, N, -1)
+
+    # Compute max among {length of i^th positive, length of i^th negative} for i \in N
+    maxlens = D_mask.sum(-1).max(0).values
+
+    # Sort by maxlens
+    indices = maxlens.sort().indices
+    Q_ids, Q_mask = Q_ids[indices], Q_mask[indices]
+    D_ids, D_mask = D_ids[:, indices], D_mask[:, indices]
+
+    positive_ids, positive_mask = D_ids, D_mask
+
+    query_batches = _split_into_batches(Q_ids, Q_mask, bsize)
+    positive_batches = _split_into_batches(positive_ids, positive_mask, bsize)
+
+    batches = []
+    for (q_ids, q_mask), (p_ids, p_mask)in zip(query_batches, positive_batches):
+        Q = (q_ids, q_mask)
+        D = (p_ids, p_mask)
+        batches.append((Q, D))
+
+    return batches
+
+
+
 def _sort_by_length(ids, mask, bsize):
     if ids.size(0) <= bsize:
         return ids, mask, torch.arange(ids.size(0))

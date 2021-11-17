@@ -70,7 +70,7 @@ class ColBERT(BertPreTrainedModel):
     def __init__(self, config, query_maxlen, doc_maxlen, mask_punctuation, dim=128, similarity_metric='cosine'):
 
         super(ColBERT, self).__init__(config)
-
+        self.config = config
         self.query_maxlen = query_maxlen
         self.doc_maxlen = doc_maxlen
         self.similarity_metric = similarity_metric
@@ -88,10 +88,46 @@ class ColBERT(BertPreTrainedModel):
         self.bert = BertModel(config)
         self.linear = nn.Linear(config.hidden_size, dim, bias=False)
 
+        self.dense = nn.Linear(config.hidden_size, config.hidden_size)
+        self.transform_act_fn = nn.ReLU()
+        self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        self.decoder = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
+        self.bias = nn.Parameter(torch.zeros(config.vocab_size))
+        # Need a link between the two variables so that the bias is correctly resized with `resize_token_embeddings`
+        self.decoder.bias = self.bias
+
+
         self.init_weights()
 
-    def forward(self, Q, D):
-        return self.score(self.query(*Q), self.doc(*D))
+    def MLMhead(self,hidden_states):
+        hidden_states = self.dense(hidden_states)
+        hidden_states = self.transform_act_fn(hidden_states)
+        hidden_states = self.LayerNorm(hidden_states)
+        hidden_states = self.decoder(hidden_states)
+        return hidden_states
+
+    def forward(self, Q, D,mode,label = None):
+        if mode == "rr":
+            return self.score(self.query(*Q), self.doc(*D))
+        if mode == "qlm": 
+            #print(Q[0].shape) ##query_ids
+            #print(Q[1]) ##query_mask
+            #print(D[0]) ##document_ids
+            #print(D[1].shape) ##document_mask
+            QD = torch.cat([Q[0],D[0]],axis = 1).cuda()
+            QD_mask = torch.cat([Q[1],D[1]],axis = 1).cuda()
+            #print(QD.shape)
+            output = self.bert(QD,attention_mask = QD_mask)
+            #print(output)
+            sequence_output = output[0]
+            #print(sequence_output.shape)
+            prediction_scores = self.MLMhead(sequence_output)
+            #print(prediction_scores.shape) ##(32,192,105879)
+            loss_fct = torch.nn.CrossEntropyLoss()  # -100 index = padding token
+            label = label.cuda()
+            masked_lm_loss = loss_fct(prediction_scores.view(-1, self.config.vocab_size), label.view(-1))
+            #print(masked_lm_loss)
+            return masked_lm_loss#
 
     def query(self, input_ids, attention_mask):
         input_ids, attention_mask = input_ids.to(DEVICE), attention_mask.to(DEVICE)
@@ -116,7 +152,8 @@ class ColBERT(BertPreTrainedModel):
 
         return D
 
-    def score(self, Q, D):
+    def score(self, Q, D): ##(64, 32, 128),(64,160,128)
+
         if self.similarity_metric == 'cosine':
             return (Q @ D.permute(0, 2, 1)).max(2).values.sum(1)
 

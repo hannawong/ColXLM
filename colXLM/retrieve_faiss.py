@@ -5,11 +5,12 @@ import os
 import torch
 import time
 
-from colXLM.modeling.colbert import ColBERT
+from colXLM.modeling.colbert import ColBERT,ColXLM
 from colXLM.parameters import DEVICE
 from colXLM.modeling.inference import ModelInference
 from colXLM.utils.utils import load_checkpoint
 from colXLM.utils.parser import Arguments
+mode = "BERT"
 
 parser = Arguments(description='retrieve top k relevant documents')
 parser.add_argument('--checkpoint_path', dest='checkpoint_path', default='/data/jiayu_xiao/project/wzh/ColXLM/MSMARCO-psg/train.py/msmarco.psg.l2/checkpoints/colbert.dnn')
@@ -222,23 +223,33 @@ def main():
     index = faiss.read_index("/data/jiayu_xiao/project/wzh/ColXLM/colXLM/indexes/faiss_l2")
 
     doc2index = doc_index(doclens)
-    colbert = ColBERT.from_pretrained('bert-base-multilingual-uncased',
-                                        query_maxlen=32,
-                                        doc_maxlen=180,
-                                        dim=128,
-                                        similarity_metric="l2",
-                                        mask_punctuation=True)
+    if mode[:4] == "BERT":
+        colbert = ColBERT.from_pretrained('bert-base-multilingual-uncased',
+                                            query_maxlen=32,
+                                            doc_maxlen=180,
+                                            dim=128,
+                                            similarity_metric="l2",
+                                            mask_punctuation=True)
+    if mode == "XLM":
+        colbert = ColXLM.from_pretrained('xlm-mlm-tlm-xnli15-1024',
+                                            query_maxlen=32,
+                                            doc_maxlen=180,
+                                            dim=128,
+                                            similarity_metric="l2",
+                                            mask_punctuation=True)         
     colbert = colbert.to("cuda")
     print("#> Loading model checkpoint.")
     load_checkpoint(args.checkpoint_path, colbert, do_print=True)
     colbert.eval()
     inference = ModelInference(colbert, amp=-1)
-    query = "treating tension headaches without medication"
+    query = "tension headache medica"
     tokens = inference.query_tokenizer.tok.tokenize(query)
     print(tokens)
     pids = get_topk(query,inference,index,doc2index,doc_tensor,doclens,len(tokens))
     print(pids)
-
+    gold = [257,1520,7135,10839,8418,3770,6783,1936,11917,5698,8250,3559,7244,9449,7280,1273,9575,3790,3573,5684]
+    union = list(set(pids).intersection(set(gold)))
+    print(len(union)/20)
 
 main()
     

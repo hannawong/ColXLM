@@ -7,6 +7,7 @@ from colXLM.modeling.tokenization.utils import _split_into_batches, _sort_by_len
 class DocTokenizer():
     def __init__(self, doc_maxlen):
         self.tok = BertTokenizerFast.from_pretrained('bert-base-multilingual-uncased')
+        #self.tok = XLMTokenizer.from_pretrained('xlm-mlm-tlm-xnli15-1024')
         self.doc_maxlen = doc_maxlen
 
         self.D_marker_token, self.D_marker_token_id = '[D]', self.tok.convert_tokens_to_ids('[unused1]')

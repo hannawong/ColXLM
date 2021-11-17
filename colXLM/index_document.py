@@ -2,7 +2,7 @@ import ujson
 import os
 import torch
 
-from colXLM.modeling.colbert import ColBERT
+from colXLM.modeling.colbert import ColBERT,ColXLM
 from colXLM.modeling.inference import ModelInference
 from colXLM.utils.utils import load_checkpoint
 from colXLM.utils.parser import Arguments
@@ -13,19 +13,27 @@ parser.add_argument('--index_path',dest = 'index_path',default = '/data/jiayu_xi
 parser.add_argument('--doc_path',dest = "doc_path",default = "./colXLM/Dataset/documents.tsv")
 args = parser.parse()
 
-
+mode = "BERT"
 def get_embedding(document,inference):
     embs = inference.docFromText([document])[0]
     return embs
 
 
 def main():
-    colbert = ColBERT.from_pretrained('bert-base-multilingual-uncased',
-                                        query_maxlen=32,
-                                        doc_maxlen=180,
-                                        dim=128,
-                                        similarity_metric="l2",
-                                        mask_punctuation=True)
+    if mode[:4] == "BERT":
+        colbert = ColBERT.from_pretrained('bert-base-multilingual-uncased',
+                                            query_maxlen=32,
+                                            doc_maxlen=180,
+                                            dim=128,
+                                            similarity_metric="l2",
+                                            mask_punctuation=True)
+    if mode == "XLM":
+        colbert = ColXLM.from_pretrained('xlm-mlm-tlm-xnli15-1024',
+                                            query_maxlen=32,
+                                            doc_maxlen=180,
+                                            dim=128,
+                                            similarity_metric="l2",
+                                            mask_punctuation=True)
 
     colbert = colbert.to("cuda")
     print("#> Loading model checkpoint.")

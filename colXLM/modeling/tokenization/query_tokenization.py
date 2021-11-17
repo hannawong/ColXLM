@@ -7,6 +7,7 @@ from colXLM.modeling.tokenization.utils import _split_into_batches
 class QueryTokenizer():
     def __init__(self, query_maxlen):
         self.tok = BertTokenizerFast.from_pretrained('bert-base-multilingual-uncased')
+        #self.tok = XLMTokenizer.from_pretrained('xlm-mlm-tlm-xnli15-1024')
         self.query_maxlen = query_maxlen
 
         self.Q_marker_token, self.Q_marker_token_id = '[Q]', self.tok.convert_tokens_to_ids('[unused0]')
@@ -16,6 +17,8 @@ class QueryTokenizer():
 
         print(self.Q_marker_token_id,self.mask_token_id)
         #assert self.Q_marker_token_id == 1 and self.mask_token_id == 103
+    def __len__(self):
+        return len(self.tok)
 
     def tokenize(self, batch_text, add_special_tokens=False):
         assert type(batch_text) in [list, tuple], (type(batch_text))
