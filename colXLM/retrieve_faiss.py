@@ -190,7 +190,7 @@ def torch_percentile(tensor, p):
 
 def get_topk(query,inference,index,doc2index,doc_tensor,doclens,query_len): ## TODO: support batch search
     start = time.time()
-    query_emb = get_embedding(query,inference).cpu().numpy()[:query_len]
+    query_emb = get_embedding(query,inference).cpu().numpy()
     freq_dic = {}
     D, I = index.search(query_emb, k//2)         
 
@@ -242,7 +242,7 @@ def main():
     load_checkpoint(args.checkpoint_path, colbert, do_print=True)
     colbert.eval()
     inference = ModelInference(colbert, amp=-1)
-    query = "tension headache medica"
+    query = "treating tension headaches without medication"
     tokens = inference.query_tokenizer.tok.tokenize(query)
     print(tokens)
     pids = get_topk(query,inference,index,doc2index,doc_tensor,doclens,len(tokens))
