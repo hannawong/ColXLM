@@ -5,7 +5,7 @@ import requests
 import time
 
 GOOGLE_TRANSLATE_URL = 'http://translate.google.cn/m?q=%s&tl=%s&sl=%s'
-TRAIN_PATH = "../Dataset/Documents.tsv"
+TRAIN_PATH = "/data/jiayu_xiao/my_data/Dataset/Documents.tsv"
 OUT_TRAIN_PATH = "/data/jiayu_xiao/my_data/Documents.fr.tsv"
 
 def translate(text, to_language="auto", text_language="auto"):
@@ -24,7 +24,7 @@ def translate(text, to_language="auto", text_language="auto"):
 Train = open(TRAIN_PATH,"r")
 OUT_train = open(OUT_TRAIN_PATH,"a")
 
-for i in range(0,967):
+for i in range(0,8819):
     line = Train.readline()
 
 for i in range(11979):

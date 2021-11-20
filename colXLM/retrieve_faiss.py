@@ -1,4 +1,3 @@
-import faiss
 from itertools import accumulate
 import ujson
 import os
@@ -10,16 +9,21 @@ from colXLM.parameters import DEVICE
 from colXLM.modeling.inference import ModelInference
 from colXLM.utils.utils import load_checkpoint
 from colXLM.utils.parser import Arguments
-mode = "BERT"
+from colXLM.retrieval.faiss_index import FaissIndex
+
 
 parser = Arguments(description='retrieve top k relevant documents')
 parser.add_argument('--checkpoint_path', dest='checkpoint_path', default='/data/jiayu_xiao/project/wzh/ColXLM/MSMARCO-psg/train.py/msmarco.psg.l2/checkpoints/colbert.dnn')
 parser.add_argument('--index_path',dest = 'index_path',default = '/data/jiayu_xiao/project/wzh/ColXLM/colXLM/indexes')
 parser.add_argument('--faiss_name',dest = "faiss_name",default = "faiss_l2")
-parser.add_argument('--k',dest = 'k',default = 20)
+parser.add_argument('--mode',dest = 'mode',default = 'BERT')
+parser.add_argument('--batchsize',dest = 'BATCHSIZE',default = 512,type = int)
+parser.add_argument('--query_doc_path',dest = 'query_doc',default = "/data/jiayu_xiao/project/wzh/queries.tsv")
+parser.add_argument('--k',dest = 'k',default = 20,type = int)
+parser.add_argument('--submit_path',dest = "submit_path")
+parser.add_argument('--gold_path',dest = "gold_path")
 args = parser.parse()
 
-k = int(args.k)
 BSIZE = 1 << 14
 
 def doc_index(doclens):
@@ -31,9 +35,11 @@ def doc_index(doclens):
             cnt += 1
     return dic
 
+
 def get_embedding(query,inference):
     embs = inference.queryFromText([query])[0]
     return embs
+
 
 class IndexRanker():
     def __init__(self, tensor, doclens):
@@ -133,12 +139,12 @@ class IndexRanker():
         assert len(raw_pids) == len(output_scores)
         assert raw_pids == output_pids
 
+        del mask
+
         return output_scores
 
     def batch_rank(self, all_query_embeddings, all_query_indexes, all_pids, sorted_pids):
         assert sorted_pids is True
-
-        ######
 
         scores = []
         range_start, range_end = 0, 0
@@ -187,69 +193,117 @@ def torch_percentile(tensor, p):
 
     return tensor.kthvalue(int(p * tensor.size(0) / 100.0)).values.item()
 
+def get_queries(query_doc):
+    query = []
+    
+    lines = query_doc.read().split("\n")
+    for line in lines:
+        if line != "":
+            query.append(line.split("\t")[1])
+    return query
 
-def get_topk(query,inference,index,doc2index,doc_tensor,doclens,query_len): ## TODO: support batch search
+def get_topk(Q, doc_tensor, doclens):
+    torch.cuda.synchronize()
     start = time.time()
-    query_emb = get_embedding(query,inference).cpu().numpy()
-    freq_dic = {}
-    D, I = index.search(query_emb, k//2)         
+    pid_after_rank = []    
 
-    document_set = set()
-    for i in range(I.shape[0]):
-        for j in range(I.shape[1]):
-            document_set.add(doc2index[I[i][j]])
-            if doc2index[I[i][j]] not in freq_dic.keys():
-                freq_dic[doc2index[I[i][j]]] = 1
-            else:
-                freq_dic[doc2index[I[i][j]]] += 1
-    print(freq_dic)
+    faiss_index = FaissIndex(args.index_path, os.path.join(args.index_path,args.faiss_name), 0)
+    pids = faiss_index.retrieve(args.k // 2, Q, verbose=True)  
+
     doc_tensor_ = torch.zeros(doc_tensor.shape[0] + 512, doc_tensor.shape[1], dtype=torch.float16)
     doc_tensor_[:doc_tensor.shape[0]] = doc_tensor
     indexranker = IndexRanker(doc_tensor,doclens)
-    query_emb = torch.tensor(query_emb)
-    query_emb = query_emb.unsqueeze(0)
-    query_emb = query_emb.permute(0,2,1)
 
-    score = indexranker.rank(query_emb.cuda(),list(document_set))
-    score_sorter = torch.tensor(score).sort(descending=True)
-    pids = torch.tensor(list(document_set))[score_sorter.indices].tolist()
+    end1 = time.time()
+    print("search in faiss cost time:",end1-start,"s")
+
+    for i in range(len(pids)):  ### rerank every query. You can use IndexRanker.batch_rank to parallel this process. 
+        torch.cuda.synchronize()
+        freq_dic = {}
+        document_set = set()
+
+        for pid in pids[i]:
+            document_set.add(pid)
+            if pid not in freq_dic.keys():  ##TODO: add BM25
+                freq_dic[pid] = 1
+            else:
+                freq_dic[pid] += 1
+
+        query_emb = Q[i]
+        query_emb = query_emb.unsqueeze(0)
+        query_emb = query_emb.permute(0,2,1)
+
+        score = indexranker.rank(query_emb.cuda(), list(document_set))
+        score_sorter = torch.tensor(score).sort(descending = True)
+        pids_sort = torch.tensor(list(document_set))[score_sorter.indices].tolist()
+        pid_after_rank.append(pids_sort[:args.k])
+        del document_set,freq_dic,query_emb,score,score_sorter,pids_sort
+
     end = time.time()
     print("time elapse during retrieval:",end-start,"s")
-    return pids[:k]
+    return pid_after_rank
+
+
+def write_pid_after_rank(pid_after_rank, output_file):
+
+    OUT = open(output_file,"w")
+    for pids_one in pid_after_rank:
+        pids = ""
+        for i in pids_one:
+            pids += str(i) + ","
+
+        OUT.write(pids[:-1] + "\n")
+
+def calc_metric(submit_path, gold_path):
+
+    submit = open(submit_path).read().split("\n")
+    gold = open(gold_path).read().split("\n")
+    assert len(submit) == len(gold)
+
+    for i in range(len(submit)-1):
+        submit_line = submit[i].split(",")
+        gold_line = gold[i].split("\t")[1:]
+        union = list(set(submit_line).intersection(set(gold_line)))
+        print(len(union)/20)
+
 
 def main():
+
     doclens = ujson.load(open(os.path.join(args.index_path,'doclens.0.json')))
     doc_tensor = torch.load(os.path.join(args.index_path,"0.pt"))
-    index = faiss.read_index("/data/jiayu_xiao/project/wzh/ColXLM/colXLM/indexes/faiss_l2")
+    query_doc = open(args.query_doc)
 
-    doc2index = doc_index(doclens)
-    if mode[:4] == "BERT":
+    if args.mode == "BERT":
         colbert = ColBERT.from_pretrained('bert-base-multilingual-uncased',
                                             query_maxlen=32,
                                             doc_maxlen=180,
                                             dim=128,
                                             similarity_metric="l2",
                                             mask_punctuation=True)
-    if mode == "XLM":
+    if args.mode == "XLM":
         colbert = ColXLM.from_pretrained('xlm-mlm-tlm-xnli15-1024',
                                             query_maxlen=32,
                                             doc_maxlen=180,
                                             dim=128,
                                             similarity_metric="l2",
-                                            mask_punctuation=True)         
+                                            mask_punctuation=True)  
+
     colbert = colbert.to("cuda")
+
     print("#> Loading model checkpoint.")
     load_checkpoint(args.checkpoint_path, colbert, do_print=True)
+
     colbert.eval()
-    inference = ModelInference(colbert, amp=-1)
-    query = "treating tension headaches without medication"
-    tokens = inference.query_tokenizer.tok.tokenize(query)
-    print(tokens)
-    pids = get_topk(query,inference,index,doc2index,doc_tensor,doclens,len(tokens))
-    print(pids)
-    gold = [257,1520,7135,10839,8418,3770,6783,1936,11917,5698,8250,3559,7244,9449,7280,1273,9575,3790,3573,5684]
-    union = list(set(pids).intersection(set(gold)))
-    print(len(union)/20)
+    inference = ModelInference(colbert, amp=1)
+
+    qbatch_text = get_queries(query_doc)
+    print(f"#> Embedding {len(qbatch_text)} queries in parallel...")
+
+    for i in range(len(qbatch_text) // args.BATCHSIZE):
+
+        qbatch_some = qbatch_text[args.BATCHSIZE * i:args.BATCHSIZE * (i + 1)]
+        Q = inference.queryFromText(qbatch_some, bsize = args.BATCHSIZE)
+        pids_rank = get_topk(Q, doc_tensor,doclens)
+        write_pid_after_rank(pids_rank, args.submit_path)
 
 main()
-    

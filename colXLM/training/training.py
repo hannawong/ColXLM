@@ -91,7 +91,7 @@ def train(args):
 
     for batch_idx, BatchSteps in zip(range(start_batch_idx, args.maxsteps), reader):
         this_batch_loss = 0.0
-
+        '''
         for queries, passages in BatchSteps:
         ###################### qlm ######################
             with amp.context():
@@ -105,7 +105,7 @@ def train(args):
 
         print_message(batch_idx, avg_loss)
         amp.step(colbert, optimizer)
-
+        '''
 
 ##########################   rr    ######################################
         for queries, passages in BatchSteps:
