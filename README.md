@@ -9,35 +9,47 @@ The current search engine of Yelp is based on [NrtSearch](https://engineeringblo
 - Sensitivity to spelling errors
 - Inability to support cross-lingual search
 
-Although Yelp rewrites the query by query expansion and spelling correction before sending it to search engine, the capacity of this method is still limited. Therefore, we intend to add a neural-network-based model trained with large amount of text to complement the lexical serach engine in ad-hoc multilingual retrieval.
+Although Yelp rewrites the query by query expansion and spelling correction before sending it to search engine, the capacity of this method is still limited. Therefore, we intend to add a neural-network-based model trained with large amount of text to complement the lexical search engine in ad-hoc multilingual retrieval.
 
 ## Pretraining Phase
 
 #### Pretraining Tasks
-Both [mBERT](https://arxiv.org/pdf/1810.04805.pdf) and [XLM](https://arxiv.org/pdf/1901.07291.pdf) focus on word-level tasks during pretraining (MLM and TLM). The fact that they perform well on word and sentence level tasks but poorly on retrieval tasks suggests that the representations of longer sequences might not be well aligned in cross-lingual LMs. Therefore, we use two pretraining objective specially designed for cross-lingual retrieval tasks:
+Both [mBERT](https://arxiv.org/pdf/1810.04805.pdf) and [XLM](https://arxiv.org/pdf/1901.07291.pdf) focus on word-level and sentence-level tasks during pretraining. The fact that they perform well on word and sentence level tasks but poorly on retrieval tasks suggests that the representations of longer sequences might not be well aligned in cross-lingual LMs. Therefore, we use three pretraining objective specially designed for cross-lingual retrieval tasks:
 
 - Query Language Modeling Task (QLM)
-Mask some query tokens and ask the model to predict the masked tokens based on query contexts and full relevant *foreign* document.
+Mask some query tokens and ask the model to predict the masked tokens based on query contexts and full relevant document.
 - Relevance Ranking Task (RR)
-Given a query and several *foreign* documents, the model is asked to rank these documents based on levels of relevance. 
+Given a query and several documents, the model is asked to rank these documents based on levels of relevance. 
+- Representative wOrds Prediction (ROP)
+//TODO
+
+#### Model Architecture
+
+In order to be both efficient and effective, we use [ColBERT](https://arxiv.org/pdf/2004.12832.pdf) as backbone. ColBERT relies on fine-grained contextual late interaction to enable scalable BERT-based search over large text collections in tens of milliseconds.
 
 <p align="center">
-  <img align="center" src="docs/images/ColBERT-Framework-MaxSim-W370px.png" />
+  <img align="center" src="fig/ColBERT-Framework-MaxSim-W370px.png" />
 </p>
 <p align="center">
-  <b>Figure 1:</b> ColBERT's late interaction, efficiently scoring the fine-grained similarity between a queries and a passage.
+  <b>Figure 1:</b> ColBERT's late interaction structure
 </p>
 
 
 #### Pretraining Dataset Construction
-We use an in-house translation model to translate queries to 15 different languages. 
-The ColXLM-15 model includes these languages: en-fr-es-de-it-pt-nl-sv-pl-ru-ar-zh-ja-ko-hi. These abbrievations are represented by [ISO 639-2 Code](https://www.loc.gov/standards/iso639-2/php/code_list.php)
+We use [multiligual Wiki](https://dumps.wikimedia.org/) as pretraining dataset, and our approach is conceptually similar to the Inverse Cloze Task (ICT), where one sentence is sampled from a Wiki paragraph as query, and the rest of the paragraph is treated as document.  
+The ColXLM-15 model includes these languages: en-fr-es-de-it-pt-nl-sv-pl-ru-ar-zh-ja-ko-hi, represented by [ISO 639-2 Code](https://www.loc.gov/standards/iso639-2/php/code_list.php)
 
 #### Pretraining Details
-We continue pretraining our retrieval-oriented language models from the public [mBERT checkpoint](https://huggingface.co/bert-base-multilingual-uncased). Therefore, our cross-lingual LM is implicitly pretrained with three objectives(MLM, QLM, RR). We first train with RR in random order of languange pairs, then train with QLM in random order of language pairs in each iteration. Each epoch contains 32K positive query-document pairs per language pair for each objective. 
+We continue pretraining our retrieval-oriented language models from the public [mBERT checkpoint](https://huggingface.co/bert-base-multilingual-uncased). Therefore, our cross-lingual LM is implicitly pretrained with four objectives (MLM, QLM, RR, ROP). We first train with QLM in random order of languange pairs, then train with RR and ROP in random order of language pairs in each iteration. Each epoch contains 320K query-document pairs per language pair for each objective. 
+
+In order to train the model, you need to run `train.sh`:
 
 ```sh
-sh train.sh
+CUDA_VISIBLE_DEVICES="0" \
+python -m \
+colXLM.train --doc_maxlen 180 --mask-punctuation --bsize 32 --accum 1 \
+--triples /path/to/train.tsv \
+--root /path/to/ColXLM --experiment WIKI-psg --similarity l2 --run wiki.psg.l2 --maxsteps 10000
 ```
 
 ## Indexing Phase
