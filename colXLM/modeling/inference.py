@@ -65,9 +65,6 @@ class ModelInference():
         scores = scores if mask is None else scores * mask.unsqueeze(-1)
         scores = scores.max(1)
 
-        if explain:
-            assert False, "TODO"
-
         return scores.values.sum(-1).cpu()
 
 

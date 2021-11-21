@@ -26,6 +26,7 @@ class Arguments():
         self.add_argument('--dim', dest='dim', default=128, type=int)
         self.add_argument('--query_maxlen', dest='query_maxlen', default=32, type=int)
         self.add_argument('--doc_maxlen', dest='doc_maxlen', default=180, type=int)
+        self.add_argument('--langs',dest = 'langs',type = str)
 
         # Filtering-related Arguments
         self.add_argument('--mask-punctuation', dest='mask_punctuation', default=False, action='store_true')
@@ -36,7 +37,7 @@ class Arguments():
         self.add_argument('--resume_optimizer', dest='resume_optimizer', default=False, action='store_true')
         self.add_argument('--checkpoint', dest='checkpoint', default=None, required=False)
         self.add_argument('--save_step',dest = 'save_step',default = 1000,type = int)
-        
+        self.add_argument('--mlm_probability',dest = 'mlm_probability',default = 0.15,type = float)
         self.add_argument('--lr', dest='lr', default=3e-06, type=float)
         self.add_argument('--maxsteps', dest='maxsteps', default=400000, type=int)
         self.add_argument('--bsize', dest='bsize', default=32, type=int)

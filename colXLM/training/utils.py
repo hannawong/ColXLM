@@ -1,5 +1,6 @@
 import os
 import torch
+import random
 from colXLM.utils.runs import Run
 from colXLM.utils.utils import save_checkpoint
 from colXLM.parameters import SAVED_CHECKPOINTS
@@ -29,11 +30,10 @@ def manage_checkpoints(args, colbert, optimizer, batch_idx):
 def get_mask(queries,passages,args,reader):
     queries_qlm = (queries[0][:args.bsize],queries[1][:args.bsize])
     passage_qlm = (passages[0][:args.bsize],passages[1][:args.bsize])
-    mlm_probability = 0.15
 
     input_ids = queries_qlm[0]
 
-    probability_matrix = torch.full(input_ids.shape, mlm_probability)
+    probability_matrix = torch.full(input_ids.shape, args.mlm_probability)
     query_mask = (queries_qlm[0] == 101) | (queries_qlm[0] == 100)|(queries_qlm[0] == 103)
     probability_matrix.masked_fill_(query_mask, value=0.0)
             
@@ -51,4 +51,13 @@ def get_mask(queries,passages,args,reader):
     input_ids[indices_random] = random_words[indices_random]
     
     queries_qlm = (input_ids,queries_qlm[1])
+    
     return queries_qlm,passage_qlm,labels_qlm
+
+def shuf_order(langs):
+    """
+    Randomize training order.
+    """
+    tmp = langs
+    random.shuffle(tmp)
+    return tmp

@@ -24,10 +24,13 @@ Although Yelp rewrites the query by query expansion and spelling correction befo
 Both [mBERT](https://arxiv.org/pdf/1810.04805.pdf) and [XLM](https://arxiv.org/pdf/1901.07291.pdf) have shown great sucess when fine-tuned on downstream tasks. However, pre-training objectives tailored for ad-hoc information retrieval task have not been well explored. In this repository, we use three pretraining objective specially designed for multilingual retrieval tasks:
 
 - Query Language Modeling Task (QLM)
+
 Mask some query tokens and ask the model to predict the masked tokens based on query contexts and full relevant document.
 - Relevance Ranking Task (RR)
+
 Given a query and several documents, the model is asked to rank these documents based on levels of relevance. 
 - Representative wOrds Prediction (ROP)
+
 //TODO
 
 #### Model Architecture
@@ -43,7 +46,7 @@ In order to be both efficient and effective, we use [ColBERT](https://arxiv.org/
 
 
 #### Pretraining Dataset Construction
-We use [multiligual Wiki](https://dumps.wikimedia.org/) as pretraining dataset, and our approach is conceptually similar to the Inverse Cloze Task (ICT), where one sentence is sampled from a Wiki paragraph as query, and the rest of the paragraph is treated as document.  
+We use [multiligual Wiki](https://dumps.wikimedia.org/) as pretraining dataset, and our approach is conceptually similar to the Inverse Cloze Task (ICT), where one sentence is sampled from a Wiki paragraph as query, and the rest of the paragraph is treated as document. We also use `triples.train.small.tar.gz` from [MSMARCO PASSAGE RANKING DATASET](https://github.com/microsoft/MSMARCO-Passage-Ranking) as training corpus, and use an in-house translation model to translate it into 15 languages. 
 The ColXLM-15 model includes these languages: en-fr-es-de-it-pt-nl-sv-pl-ru-ar-zh-ja-ko-hi, represented by [ISO 639-2 Code](https://www.loc.gov/standards/iso639-2/php/code_list.php)
 
 #### Pretraining Details
@@ -54,8 +57,9 @@ In order to train the model, you need to run `train.sh`:
 ```sh
 CUDA_VISIBLE_DEVICES="0" \
 python -m \
-colXLM.train --doc_maxlen 180 --mask-punctuation --bsize 32 --accum 1 \
+colXLM.train --doc_maxlen 180 --mask-punctuation --bsize 32 --accum 1 --mlm_probability 0.1 \
 --triples /path/to/train.tsv \
+--langs "en,fr,es,de,it,pt,nl,sv,pl,ru,ar,zh,ja,ko,hi" \
 --root /path/to/ColXLM --experiment WIKI-psg --similarity l2 --run wiki.psg.l2 --maxsteps 10000
 ```
 

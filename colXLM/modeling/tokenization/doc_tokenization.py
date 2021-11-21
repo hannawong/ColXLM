@@ -7,27 +7,21 @@ from colXLM.modeling.tokenization.utils import _split_into_batches, _sort_by_len
 class DocTokenizer():
     def __init__(self, doc_maxlen):
         self.tok = BertTokenizerFast.from_pretrained('bert-base-multilingual-uncased')
-        #self.tok = XLMTokenizer.from_pretrained('xlm-mlm-tlm-xnli15-1024')
         self.doc_maxlen = doc_maxlen
-
         self.D_marker_token, self.D_marker_token_id = '[D]', self.tok.convert_tokens_to_ids('[unused1]')
         self.cls_token, self.cls_token_id = self.tok.cls_token, self.tok.cls_token_id
         self.sep_token, self.sep_token_id = self.tok.sep_token, self.tok.sep_token_id
 
-        #assert self.D_marker_token_id == 2
 
     def tokenize(self, batch_text, add_special_tokens=False):
-        assert type(batch_text) in [list, tuple], (type(batch_text))
 
         tokens = [self.tok.tokenize(x, add_special_tokens=False) for x in batch_text]
-
         if not add_special_tokens:
             return tokens
-
         prefix, suffix = [self.cls_token, self.D_marker_token], [self.sep_token]
         tokens = [prefix + lst + suffix for lst in tokens]
-
         return tokens
+
 
     def encode(self, batch_text, add_special_tokens=False):
         assert type(batch_text) in [list, tuple], (type(batch_text))
