@@ -21,7 +21,7 @@ Although Yelp rewrites the query by query expansion and spelling correction befo
 ## Pretraining Phase
 
 #### Pretraining Tasks
-Both [mBERT](https://arxiv.org/pdf/1810.04805.pdf) and [XLM](https://arxiv.org/pdf/1901.07291.pdf) focus on word-level and sentence-level tasks during pretraining. The fact that they perform well on word and sentence level tasks but poorly on retrieval tasks suggests that the representations of longer sequences might not be well aligned in cross-lingual LMs. Therefore, we use three pretraining objective specially designed for cross-lingual retrieval tasks:
+Both [mBERT](https://arxiv.org/pdf/1810.04805.pdf) and [XLM](https://arxiv.org/pdf/1901.07291.pdf) have shown great sucess when fine-tuned on downstream tasks. However, pre-training objectives tailored for ad-hoc information retrieval task have not been well explored. In this repository, we use three pretraining objective specially designed for multilingual retrieval tasks:
 
 - Query Language Modeling Task (QLM)
 Mask some query tokens and ask the model to predict the masked tokens based on query contexts and full relevant document.
