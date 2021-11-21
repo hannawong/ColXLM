@@ -3,7 +3,7 @@
 Hi there! 👋 In this repository, we develop a Cross-lingual Information Retrieval model that support 15 different languages, and it will be used on Yelp search engine after further online experiments. 
 
 <p align="center">
-  <img align="center" src="fig/yelp.png" />
+  <img align="center" src="fig/yelp.PNG" />
 </p>
 <p align="center">
   <b>Figure 1:</b> Yelp's search interface
