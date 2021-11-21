@@ -7,10 +7,15 @@ PROP, **P**re-training with **R**epresentative w**O**rds **P**rediction, is a ne
 Run the following command to generate files:
 
 `corpus_df_file.json: {word: document tf}`
+
 `doc_tf_file.json: {doc_id, doc_tf, doc_word_num}, one document per line`
+
 `corpus_tf_file.json: {word: corpus tf}`
+
 `info_file.json: {total_doc_num, total_word_num, average_doc_word_num}`
+
 `stem2pos_file.json: {stem: {word: count}}`
+
 `preprocessed_data: {docid, bert_tokenized_doc_text}`
 
 ```sh
