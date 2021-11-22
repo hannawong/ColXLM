@@ -1,4 +1,4 @@
-# Multilingual Information Retrieval Model for Document Search
+# Multilingual Information Retrieval Model for Yelp Search Engine
 
 Hi there! 👋 In this repository, we develop a Multilingual Information Retrieval model that support 15 different languages, and it will be used on Yelp search engine after further online experiments. 
 
