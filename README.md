@@ -29,7 +29,7 @@ Mask some query tokens and ask the model to predict the masked tokens based on q
 - Relevance Ranking Task (RR)
 
 Given a query and several documents, the model is asked to rank these documents based on levels of relevance. 
-- Representative wOrds Prediction (ROP): from [paper](https://arxiv.org/pdf/2010.10137.pdf)
+- Representative wOrds Prediction ([ROP](https://arxiv.org/pdf/2010.10137.pdf))
 
 Pretrain the model to predict the pairwise preference between two generated pseudo queries from document. 
 
