@@ -8,12 +8,14 @@ from pathlib import Path
 from argparse import ArgumentParser
 from tempfile import TemporaryDirectory
 from multiprocessing import Pool, Value, Lock
-from random import random, shuffle, choice, sample, randrange
+from random import random, shuffle, choice, sample
 
-import numpy as np
 from tqdm import tqdm
 
 from transformers import BertTokenizer
+
+OUTPATH = "/data/jiayu_xiao/my_data/Dataset/prop/msmarco_info/prop_queries.tsv"
+out = open(OUTPATH,"w")
 
 lock = Lock()
 num_instances = Value('i', 0)
@@ -135,78 +137,6 @@ def create_masked_lm_predictions(tokens, masked_lm_prob, max_predictions_per_seq
 
     return tokens, mask_indices, masked_token_labels
 
-def construct_pairwise_examples(docs, chunk_indexs, rop_num_per_doc, max_seq_len, mlm, 
-                                bert_tokenizer, masked_lm_prob, max_predictions_per_seq,
-                                bert_vocab_list, epoch_filename):
-    cnt = 0
-    for idx in chunk_indexs:
-        cnt += 1
-        if cnt % 1000 == 0:
-            print(cnt)
-        example = docs[idx]
-        print(example)
-        rep_word_sets = example["rep_word_sets"]
-        pos_bert_tokenized_doc = example['bert_tokenized_content']
-        assert rop_num_per_doc <= len(rep_word_sets)
-
-        # Sample $M$ pair of candiate word sets
-        rep_word_sets_indexes = list(range(len(rep_word_sets)))
-        cand_rep_word_sets_indexes = np.random.choice(rep_word_sets_indexes, rop_num_per_doc, replace=False)
-        
-        # Construct positive and negative examples
-        instances = []
-        for i in range(len(rep_word_sets)):
-            if i not in cand_rep_word_sets_indexes:
-                continue
-            pairwise_rep_word_sets = rep_word_sets[i]
-            rep_word_set1, rep_word_set1_score = pairwise_rep_word_sets[0]
-            rep_word_set2, rep_word_set2_score = pairwise_rep_word_sets[1]
-
-            if rep_word_set1_score > rep_word_set2_score:
-                pos_rep_word_set = rep_word_set1
-                neg_rep_word_set = rep_word_set2
-            else:
-                pos_rep_word_set = rep_word_set2
-                neg_rep_word_set = rep_word_set1
-            print(pos_rep_word_set)
-            print(neg_rep_word_set)
-            exit()
-
-
-            for j, word_sets in enumerate([pos_rep_word_set, neg_rep_word_set]):
-                query_tokens = bert_tokenizer.tokenize(word_sets)
-                doc_tokens = pos_bert_tokenized_doc
-                assert len(query_tokens) >= 1 and len(doc_tokens) >= 1
-
-                label = 1 if j == 0 else 0
-
-                truncate_seq_pair(query_tokens, doc_tokens, max_seq_len-3)
-                tokens = ["[CLS]"] + query_tokens + ["[SEP]"] + doc_tokens + ["[SEP]"]
-                # The segment IDs are 0 for the [CLS] token, the A tokens and the first [SEP]
-                # They are 1 for the B tokens and the final [SEP]
-                segment_ids = [0 for _ in range(len(query_tokens) + 2)] + [1 for _ in range(len(doc_tokens) + 1)]
-
-                tokens, masked_lm_positions, masked_lm_labels = create_masked_lm_predictions(
-                    tokens, masked_lm_prob, max_predictions_per_seq, True, bert_vocab_list)
-
-                input_ids = bert_tokenizer.convert_tokens_to_ids(tokens)
-                masked_label_ids = bert_tokenizer.convert_tokens_to_ids(masked_lm_labels)
-
-                instance = {
-                    "input_ids": input_ids,
-                    "segment_ids": segment_ids,
-                    "masked_lm_positions": masked_lm_positions,
-                    "masked_label_ids": masked_label_ids,
-                    "label": label,
-                    }
-                instances.append(instance)
-
-        lock.acquire()
-        with open(epoch_filename,'a+') as epoch_file:
-            for instance in instances:
-                epoch_file.write(json.dumps(instance, ensure_ascii=False) + '\n')
-                num_instances.value += 1
-        lock.release()
 
 def error_callback(e):
     print('error')
@@ -238,37 +168,27 @@ if __name__ == '__main__':
 
     bert_tokenizer = BertTokenizer.from_pretrained(args.bert_model, do_lower_case=args.do_lower_case)
     bert_vocab_list = list(bert_tokenizer.vocab.keys())
+    epoch = 0
+    epoch_data = args.train_corpus / f"instances_epoch_{epoch}.json"
+    with DocumentDatabase(temp_dir=args.temp_dir) as docs:
+        with epoch_data.open() as f:
+            for line in tqdm(f, desc="Loading Dataset", unit=" lines"):
+                example = json.loads(line)    
+                rep_word_sets = example["rep_word_sets"]
+                doc = example["bert_tokenized_content"]
+                for i in range(len(rep_word_sets)):
+                    pairwise_rep_word_sets = rep_word_sets[i]
+                    rep_word_set1, rep_word_set1_score = pairwise_rep_word_sets[0]
+                    rep_word_set2, rep_word_set2_score = pairwise_rep_word_sets[1]
 
-    for epoch in range(args.epochs_to_generate):
-        epoch_data = args.train_corpus / f"instances_epoch_{epoch}.json"
-        with DocumentDatabase(temp_dir=args.temp_dir) as docs:
-            with epoch_data.open() as f:
-                for line in tqdm(f, desc="Loading Dataset", unit=" lines"):
-                    example = json.loads(line)
-                    docs.add_document(example)
-                if len(docs) <= 1:
-                    exit("ERROR: No document breaks were found in the input file!")
-            print('Reading file is done! Total doc num:{}'.format(len(docs)))
+                if rep_word_set1_score > rep_word_set2_score:
+                    pos_rep_word_set = rep_word_set1
+                    neg_rep_word_set = rep_word_set2
+                else:
+                    pos_rep_word_set = rep_word_set2
+                    neg_rep_word_set = rep_word_set1
 
-            instances = []
-            num_instances.value = 0
-            output_epoch_filename = args.output_dir / f"epoch_{epoch}.json"
-            processors = Pool(args.num_workers)
-            cand_idxs = list(range(0, len(docs)))
-            shuffle(cand_idxs)
-            for i in range(args.num_workers):
-                chunk_size = int(len(cand_idxs) / args.num_workers)
-                chunk_indexs = cand_idxs[i*chunk_size:(i+1)*chunk_size]
-                r = processors.apply_async(construct_pairwise_examples, (docs, chunk_indexs, args.rop_num_per_doc, args.max_seq_len, \
-                    args.mlm, bert_tokenizer, args.masked_lm_prob, args.max_predictions_per_seq, bert_vocab_list, output_epoch_filename,),\
-                    error_callback=error_callback)
-            processors.close()
-            processors.join()
+                out.write(doc+"\t"+pos_rep_word_set+"\t"+neg_rep_word_set+"\n")               
+            
 
-            metrics_file = args.output_dir / f"epoch_{epoch}_metrics.json"
-            with metrics_file.open('w') as metrics_file:
-                metrics = {
-                    "num_training_examples": num_instances.value,
-                    "max_seq_len": args.max_seq_len
-                }
-                metrics_file.write(json.dumps(metrics))       
+            

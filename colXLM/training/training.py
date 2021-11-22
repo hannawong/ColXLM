@@ -6,7 +6,7 @@ import numpy as np
 from transformers import AdamW
 
 from colXLM.utils.amp import MixedPrecisionManager
-from colXLM.training.eager_batcher import EagerBatcher
+from colXLM.training.eager_batcher import EagerBatcher, PropBatcher
 from colXLM.parameters import DEVICE
 from colXLM.modeling.colbert import ColBERT
 from colXLM.utils.utils import print_message
@@ -29,7 +29,10 @@ def train(args):
     languages = args.langs.split(",")
     reader_dic = {}
     for lang in languages:
-        reader_dic[lang] = EagerBatcher(args, os.path.join(args.triples, f"triples.train.{lang}.tsv"),
+        reader_dic[lang] = {}
+        reader_dic[lang]["rr&qlm"] = EagerBatcher(args, os.path.join(args.triples, f"triples.train.{lang}.tsv"),
+                                        (0 if args.rank == -1 else args.rank), args.nranks)
+        reader_dic[lang]["prop"] = PropBatcher(args,os.path.join(args.prop, f"prop_{lang}.tsv"),
                                         (0 if args.rank == -1 else args.rank), args.nranks)
     if args.rank not in [-1, 0]:
         torch.distributed.barrier()
@@ -70,16 +73,17 @@ def train(args):
     criterion = nn.CrossEntropyLoss()
     optimizer = AdamW(filter(lambda p: p.requires_grad, colbert.parameters()), lr=args.lr, eps=1e-8)
 
-    def train_lang(lang, step):
+    def train_lang(lang, step, mode = "rr_qlm"):
         
         print(f"training with language {lang}")
         train_loss = 0.0
         train_loss_qlm = 0.0
+        train_loss_prop = 0.0
 
         start_batch_idx = 0
         labels = torch.zeros(args.bsize, dtype=torch.long, device=DEVICE)
         optimizer.zero_grad()
-        reader = reader_dic[lang]
+        reader = reader_dic[lang][mode]
 
         if args.resume:
             assert args.checkpoint is not None
@@ -88,38 +92,56 @@ def train(args):
             reader.skip_to_batch(start_batch_idx, checkpoint['arguments']['bsize'])
 
         for batch_idx, BatchSteps in zip(range(start_batch_idx, 1), reader):
-        
-            for queries, passages in BatchSteps:
-            ##qlm             
-                with amp.context():
-                    queries_qlm,passage_qlm,labels_qlm = get_mask(queries,passages,args,reader)
-                    loss = colbert(queries_qlm,passage_qlm,"qlm",labels_qlm)
+            if mode == "rr&qlm":
+                for queries, passages in BatchSteps:
+                ##qlm             
+                    with amp.context():
+                        queries_qlm,passage_qlm,labels_qlm = get_mask(queries,passages,args,reader)
+                        loss = colbert(queries_qlm,passage_qlm,"qlm",labels_qlm)
 
-                amp.backward(loss)
-                train_loss_qlm += loss.item()
+                    amp.backward(loss)
+                    train_loss_qlm += loss.item()
 
-            avg_loss = train_loss_qlm / (batch_idx+1)
-            print_message(step, avg_loss)
-            amp.step(colbert, optimizer)
+                avg_loss = train_loss_qlm / (batch_idx+1)
+                print_message(step, avg_loss)
+                amp.step(colbert, optimizer)
+                
+
+                ###rr         
+                for queries, passages in BatchSteps:
+                    with amp.context():
+                        scores = colbert(queries, passages,"rr").view(2, -1).permute(1, 0)
+                        loss = criterion(scores, labels[:scores.size(0)])
+
+                    print_progress(scores)
+                    amp.backward(loss)
+                    train_loss += loss.item()
+
+                amp.step(colbert, optimizer)
+                
+                avg_loss = train_loss / (batch_idx+1)
+                print_message(step, avg_loss)
             
+            elif mode == "prop":
+                print("##> in mode prop")
+                for passages, queries in BatchSteps:
+                    with amp.context():
+                
+                        scores = colbert(queries, passages,"prop").view(2, -1).permute(1, 0)
+                        loss = criterion(scores, labels[:scores.size(0)])
+                        
+                    amp.backward(loss)
+                    train_loss_prop += loss.item()
+                    print_progress(scores)
 
-            ###rr         
-            for queries, passages in BatchSteps:
-                with amp.context():
-                    scores = colbert(queries, passages,"rr").view(2, -1).permute(1, 0)
-                    loss = criterion(scores, labels[:scores.size(0)])
+                avg_loss = train_loss_prop / (batch_idx+1)
+                print_message(step, avg_loss)
+                amp.step(colbert, optimizer)
 
-                print_progress(scores)
-                amp.backward(loss)
-                train_loss += loss.item()
-
-            amp.step(colbert, optimizer)
-            
-            avg_loss = train_loss / (batch_idx+1)
-            print_message(step, avg_loss)
         
 
     for step in range(args.maxsteps):
         for lang in shuf_order(languages):
-            train_lang(lang,step)
+            train_lang(lang,step,"rr&qlm")
+            train_lang(lang,step,"prop")
         manage_checkpoints(args, colbert, optimizer, step+1)

@@ -51,6 +51,9 @@ class ColBERT(BertPreTrainedModel):
         if mode == "qlm": 
             return self.qlm_score(Q,D,label)
 
+        if mode == "prop":
+            return self.score(self.doc(*Q),self.query(*D))
+
 
     def query(self, input_ids, attention_mask):
         input_ids, attention_mask = input_ids.to(DEVICE), attention_mask.to(DEVICE)

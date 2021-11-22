@@ -223,6 +223,8 @@ def calc_metric(submit_path, gold_path):
         gold_line = gold[i].split("\t")[1:]
         union = list(set(submit_line).intersection(set(gold_line)))
         print(len(union)/20)
+calc_metric(args.submit_path,args.gold_path)
+exit()
 
 def main():
 
@@ -280,8 +282,6 @@ def main():
             pids_sort = torch.tensor(list(document_set))[score_sorter.indices].tolist()
             pid_after_rank.append(pids_sort[:args.k])
             torch.cuda.synchronize()
-    
-    
-    write_pid_after_rank(pid_after_rank, args.submit_path)
+        write_pid_after_rank(pid_after_rank, args.submit_path)
 
 main()

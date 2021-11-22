@@ -90,12 +90,13 @@ if __name__ == '__main__':
 
                 if args.do_lower_case:
                     text_content = text_content.lower()
+
                 tokens = nltk_tokenizer.tokenize(text_content)
                 doc_idx_pool.append(docid)
                 docs.add_document(docid, tokens)
 
                 bert_tokenized_document = bert_tokenizer.tokenize(' '.join(text_content.split()[:512]))
-                doc_instance = {'id': docid, 'contents': bert_tokenized_document}
+                doc_instance = {'id': docid, 'contents': bert_tokenized_document,"full_doc":text_content}
                 fin.write(json.dumps(doc_instance, ensure_ascii=False) + '\n')
 
 

@@ -53,6 +53,7 @@ class Arguments():
         self.add_argument('--triples', dest='triples', required=True)
         self.add_argument('--queries', dest='queries', default=None)
         self.add_argument('--collection', dest='collection', default=None)
+        self.add_argument('--prop',dest = "prop",default = None)
 
         def check_training_input(args):
             assert (args.collection is None) == (args.queries is None), \

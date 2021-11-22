@@ -1,6 +1,6 @@
-# Cross-lingual Information Retrieval Model for Document Search
+# Multilingual Information Retrieval Model for Document Search
 
-Hi there! 👋 In this repository, we develop a Cross-lingual Information Retrieval model that support 15 different languages, and it will be used on Yelp search engine after further online experiments. 
+Hi there! 👋 In this repository, we develop a Multilingual Information Retrieval model that support 15 different languages, and it will be used on Yelp search engine after further online experiments. 
 
 <p align="center">
   <img align="center" src="fig/yelp.PNG" />
@@ -14,7 +14,7 @@ The current search engine of Yelp is based on [NrtSearch](https://engineeringblo
 - Lack of understanding of hypernyms, synonyms, and antonyms. For example, *"sneaker"* might match the intent of the query *"running shoes"*, but may not be retrieved.
 - Fragility of morphological variants (e.g. *woman* vs. *women*)
 - Sensitivity to spelling errors
-- Inability to support cross-lingual search
+- Inability to support multilingual search
 
 Although Yelp rewrites the query by query expansion and spelling correction before sending it to search engine, the capacity of this method is still limited. Therefore, we intend to add a neural-network-based model trained with large amount of text to complement the lexical search engine in ad-hoc multilingual retrieval.
 
@@ -52,7 +52,7 @@ We use [multiligual Wiki](https://dumps.wikimedia.org/) as pretraining dataset, 
 The ColXLM-15 model includes these languages: en-fr-es-de-it-pt-nl-sv-pl-ru-ar-zh-ja-ko-hi, represented by [ISO 639-2 Code](https://www.loc.gov/standards/iso639-2/php/code_list.php)
 
 #### Pretraining Details
-We continue pretraining our retrieval-oriented language models from the public [mBERT checkpoint](https://huggingface.co/bert-base-multilingual-uncased). Therefore, our cross-lingual LM is implicitly pretrained with four objectives (MLM, QLM, RR, ROP). We first train with QLM in random order of languange pairs, then train with RR and ROP in random order of language pairs in each iteration. Each epoch contains 320K query-document pairs per language pair for each objective. 
+We continue pretraining our retrieval-oriented language models from the public [mBERT checkpoint](https://huggingface.co/bert-base-multilingual-uncased). Therefore, our multilingual LM is implicitly pretrained with four objectives (MLM, QLM, RR, ROP). We first train with QLM in random order of languange pairs, then train with RR and ROP in random order of language pairs in each iteration. Each epoch contains 200K iteration per language pair for each objective, with batchsize 32. 
 
 In order to train the model, you need to run `train.sh`:
 
@@ -61,6 +61,7 @@ CUDA_VISIBLE_DEVICES="0" \
 python -m \
 colXLM.train --doc_maxlen 180 --mask-punctuation --bsize 32 --accum 1 --mlm_probability 0.1 \
 --triples /path/to/train.tsv \
+--prop /path/to/prop/msmarco_info \
 --langs "en,fr,es,de,it,pt,nl,sv,pl,ru,ar,zh,ja,ko,hi" \
 --root /path/to/ColXLM --experiment WIKI-psg --similarity l2 --run wiki.psg.l2 --maxsteps 10000
 ```
@@ -69,7 +70,11 @@ colXLM.train --doc_maxlen 180 --mask-punctuation --bsize 32 --accum 1 --mlm_prob
 In this step, we use the model trained in the pretraining phase to embed every document, and then store the embedding on disk. 
 
 ```sh
-sh index_document.sh
+CUDA_VISIBLE_DEVICES="0" \
+python -m colXLM.index_document \
+--checkpoint_path /path/to/checkpoints/colbert.dnn \
+--index_path /path/to/indexes \
+--doc_path /path/to/documents.tsv
 ```
 
 We typically recommend that you use ColXLM for **end-to-end** retrieval, where it directly finds its top-k passages from the full collection. For this, you need FAISS indexing.
@@ -79,16 +84,28 @@ We typically recommend that you use ColXLM for **end-to-end** retrieval, where i
 For end-to-end retrieval, you should index the document representations into [FAISS](https://github.com/facebookresearch/faiss).
 
 ```sh 
-sh index_faiss.sh
+CUDA_VISIBLE_DEVICES="0" \
+python -m colXLM.index_faiss \
+--dim 128 --index_path /path/to/indexes --faiss_name 'faiss_l2' 
 ```
 
-## Finetune your model
 
-You can finetune the pretrained model simply by running `finetune.sh`.
-
-## Retrieval Phase
+## 🚀 Retrieval Phase 
 
 run `retrieve.sh` to retrieve relevant documents from full collection.
+
+```sh
+CUDA_VISIBLE_DEVICES="7" \
+python -m colXLM.retrieve_faiss \
+--checkpoint_path /path/to/checkpoints/colbert.dnn \
+--query_doc_path /path/to/queries.tsv \
+--submit_path /path/to/submit.tsv \
+--index_path /path/to/indexes \
+--gold_path /path/to/top1000.tsv \
+--faiss_name faiss_l2 \
+--batchsize 128 \
+--k 1000   
+```
 
 ## Contact us
 Zihan Wang: zw2782@columbia.edu

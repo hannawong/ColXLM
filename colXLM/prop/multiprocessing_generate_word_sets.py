@@ -177,6 +177,7 @@ class TableForNegativeSamples:
 
 def generate_word_sets_from_document(docs, chunk_indexs, stem, rop_num_per_doc, possion_lambda, docs_tf, normalized_df,
     negative_table, average_doc_word_num, words_kept_prob, stem2word, epoch_file_name):
+    epoch_file = open(epoch_file_name,"w")
     cnt = 0
     for doc_id in chunk_indexs:
         cnt += 1
@@ -268,10 +269,8 @@ def generate_word_sets_from_document(docs, chunk_indexs, stem, rop_num_per_doc, 
             'bert_tokenized_content': document_data
             }
 
-        lock.acquire()
-        with open(epoch_file_name,'a+') as epoch_file:
-            epoch_file.write(json.dumps(instance, ensure_ascii=False) + '\n')
-        lock.release()
+
+        epoch_file.write(json.dumps(instance, ensure_ascii=False) + '\n')
 
 
 def softmax(x, t=1):
@@ -313,7 +312,7 @@ if __name__ == '__main__':
             for line in tqdm(f, desc="Loading Dataset", unit=" lines"):
                 data = json.loads(line)
                 docid = data['id']
-                text_content = data['contents']
+                text_content = data['full_doc']
                 doc_idx_pool.append(docid)
                 docs.add_document(docid, text_content)
 
