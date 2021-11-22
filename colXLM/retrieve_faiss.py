@@ -2,8 +2,6 @@ from itertools import accumulate
 import ujson
 import os
 import torch
-import time
-import numpy as np
 
 from colXLM.modeling.colbert import ColBERT
 from colXLM.parameters import DEVICE
@@ -204,45 +202,6 @@ def get_queries(query_doc):
             query.append(line.split("\t")[1])
     return query
 
-def get_topk(Q, doc_tensor, doclens):
-    start = time.time()
-    pid_after_rank = []    
-
-    faiss_index = FaissIndex(args.index_path, os.path.join(args.index_path,args.faiss_name), 0)
-    pids = faiss_index.retrieve(args.k // 2, Q, verbose=True)  
-
-    doc_tensor_ = torch.zeros(doc_tensor.shape[0] + 512, doc_tensor.shape[1], dtype=torch.float16)
-    doc_tensor_[:doc_tensor.shape[0]] = doc_tensor
-    indexranker = IndexRanker(doc_tensor,doclens)
-
-    end1 = time.time()
-    print("search in faiss cost time:",end1-start,"s")
-
-    for i in range(len(pids)):  ### rerank every query. You can use IndexRanker.batch_rank to parallel this process. 
-        freq_dic = {}
-        document_set = set()
-
-        for pid in pids[i]:
-            document_set.add(pid)
-            if pid not in freq_dic.keys():  ##TODO: add BM25
-                freq_dic[pid] = 1
-            else:
-                freq_dic[pid] += 1
-
-        query_emb = Q[i]
-        query_emb = query_emb.unsqueeze(0)
-        query_emb = query_emb.permute(0,2,1)
-
-        score = indexranker.rank(query_emb.cuda(), list(document_set))
-        score_sorter = torch.tensor(score).sort(descending = True)
-        pids_sort = torch.tensor(list(document_set))[score_sorter.indices].tolist()
-        pid_after_rank.append(pids_sort[:args.k])
-
-    end = time.time()
-    print("time elapse during retrieval:",end-start,"s")
-    return pid_after_rank
-
-
 def write_pid_after_rank(pid_after_rank, output_file):
 
     OUT = open(output_file,"w")
@@ -257,15 +216,13 @@ def calc_metric(submit_path, gold_path):
 
     submit = open(submit_path).read().split("\n")
     gold = open(gold_path).read().split("\n")
-    assert len(submit) == len(gold)
+    #assert len(submit) == len(gold)
 
     for i in range(len(submit)-1):
         submit_line = submit[i].split(",")
         gold_line = gold[i].split("\t")[1:]
         union = list(set(submit_line).intersection(set(gold_line)))
         print(len(union)/20)
-
-#calc_metric(args.submit_path,args.gold_path)
 
 def main():
 
@@ -290,15 +247,41 @@ def main():
 
     qbatch_text = get_queries(query_doc)
     print(f"#> Embedding {len(qbatch_text)} queries in parallel...")
-    qbatch_some = ['headache medicine']
-    Q = inference.queryFromText(qbatch_some, bsize = args.BATCHSIZE)
-    pids_rank = get_topk(Q, doc_tensor,doclens)
-    print(pids_rank)
-    exit()
+
+    pid_after_rank = []
     for i in range(len(qbatch_text) // args.BATCHSIZE):
+
         qbatch_some = qbatch_text[args.BATCHSIZE * i:args.BATCHSIZE * (i + 1)]
         Q = inference.queryFromText(qbatch_some, bsize = args.BATCHSIZE)
-        pids_rank = get_topk(Q, doc_tensor,doclens)
-        write_pid_after_rank(pids_rank, args.submit_path)
+        faiss_index = FaissIndex(args.index_path, os.path.join(args.index_path,args.faiss_name), 0)
+        pids = faiss_index.retrieve(args.k // 2, Q, verbose=True)  
+
+        for j in range(len(pids)):
+            torch.cuda.synchronize('cuda:0')
+            freq_dic = {}
+            document_set = set()
+
+            for pid in pids[j]:
+                document_set.add(pid)
+                if pid not in freq_dic.keys():  ##TODO: add BM25
+                    freq_dic[pid] = 1
+                else:
+                    freq_dic[pid] += 1
+
+            doc_tensor_ = torch.zeros(doc_tensor.shape[0] + 512, doc_tensor.shape[1], dtype=torch.float16)
+            doc_tensor_[:doc_tensor.shape[0]] = doc_tensor
+            indexranker = IndexRanker(doc_tensor_,doclens)
+            query_emb = Q[j]
+            query_emb = query_emb.unsqueeze(0)
+            query_emb = query_emb.permute(0,2,1)
+
+            score = indexranker.rank(query_emb.cuda(), list(document_set))
+            score_sorter = torch.tensor(score).sort(descending = True)
+            pids_sort = torch.tensor(list(document_set))[score_sorter.indices].tolist()
+            pid_after_rank.append(pids_sort[:args.k])
+            torch.cuda.synchronize()
+    
+    
+    write_pid_after_rank(pid_after_rank, args.submit_path)
 
 main()
