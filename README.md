@@ -31,7 +31,7 @@ Mask some query tokens and ask the model to predict the masked tokens based on q
 Given a query and several documents, the model is asked to rank these documents based on levels of relevance. 
 - Representative wOrds Prediction ([ROP](https://arxiv.org/pdf/2010.10137.pdf))
 
-Pretrain the model to predict the pairwise preference between two generated pseudo queries from document. 
+Pretrain the model to predict the pairwise preference between two generated pseudo queries from document. Please refer to the detail of PROP in [here](https://github.com/hannawong/ColXLM/tree/main/colXLM/prop)
 
 
 
