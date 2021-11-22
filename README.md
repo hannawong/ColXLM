@@ -80,6 +80,14 @@ For end-to-end retrieval, you should index the document representations into [FA
 sh index_faiss.sh
 ```
 
+## Finetune your model
+
+You can finetune the pretrained model simply by running `finetune.sh`.
+
+## Retrieval Phase
+
+run `retrieve.sh` to retrieve relevant documents from full collection.
+
 ## Contact us
 Zihan Wang: zw2782@columbia.edu
 

@@ -6,3 +6,4 @@ nohup.out
 indexes/
 experiments/
 submit.tsv
+tmp*

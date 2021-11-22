@@ -3,8 +3,9 @@ import ujson
 import os
 import torch
 import time
+import numpy as np
 
-from colXLM.modeling.colbert import ColBERT,ColXLM
+from colXLM.modeling.colbert import ColBERT
 from colXLM.parameters import DEVICE
 from colXLM.modeling.inference import ModelInference
 from colXLM.utils.utils import load_checkpoint
@@ -139,12 +140,12 @@ class IndexRanker():
         assert len(raw_pids) == len(output_scores)
         assert raw_pids == output_pids
 
-        del mask
-
         return output_scores
 
     def batch_rank(self, all_query_embeddings, all_query_indexes, all_pids, sorted_pids):
         assert sorted_pids is True
+
+        ######
 
         scores = []
         range_start, range_end = 0, 0
@@ -193,6 +194,7 @@ def torch_percentile(tensor, p):
 
     return tensor.kthvalue(int(p * tensor.size(0) / 100.0)).values.item()
 
+
 def get_queries(query_doc):
     query = []
     
@@ -203,7 +205,6 @@ def get_queries(query_doc):
     return query
 
 def get_topk(Q, doc_tensor, doclens):
-    torch.cuda.synchronize()
     start = time.time()
     pid_after_rank = []    
 
@@ -218,7 +219,6 @@ def get_topk(Q, doc_tensor, doclens):
     print("search in faiss cost time:",end1-start,"s")
 
     for i in range(len(pids)):  ### rerank every query. You can use IndexRanker.batch_rank to parallel this process. 
-        torch.cuda.synchronize()
         freq_dic = {}
         document_set = set()
 
@@ -237,7 +237,6 @@ def get_topk(Q, doc_tensor, doclens):
         score_sorter = torch.tensor(score).sort(descending = True)
         pids_sort = torch.tensor(list(document_set))[score_sorter.indices].tolist()
         pid_after_rank.append(pids_sort[:args.k])
-        del document_set,freq_dic,query_emb,score,score_sorter,pids_sort
 
     end = time.time()
     print("time elapse during retrieval:",end-start,"s")
@@ -266,6 +265,7 @@ def calc_metric(submit_path, gold_path):
         union = list(set(submit_line).intersection(set(gold_line)))
         print(len(union)/20)
 
+#calc_metric(args.submit_path,args.gold_path)
 
 def main():
 
@@ -273,20 +273,12 @@ def main():
     doc_tensor = torch.load(os.path.join(args.index_path,"0.pt"))
     query_doc = open(args.query_doc)
 
-    if args.mode == "BERT":
-        colbert = ColBERT.from_pretrained('bert-base-multilingual-uncased',
+    colbert = ColBERT.from_pretrained('bert-base-multilingual-uncased',
                                             query_maxlen=32,
                                             doc_maxlen=180,
                                             dim=128,
                                             similarity_metric="l2",
                                             mask_punctuation=True)
-    if args.mode == "XLM":
-        colbert = ColXLM.from_pretrained('xlm-mlm-tlm-xnli15-1024',
-                                            query_maxlen=32,
-                                            doc_maxlen=180,
-                                            dim=128,
-                                            similarity_metric="l2",
-                                            mask_punctuation=True)  
 
     colbert = colbert.to("cuda")
 
@@ -294,13 +286,16 @@ def main():
     load_checkpoint(args.checkpoint_path, colbert, do_print=True)
 
     colbert.eval()
-    inference = ModelInference(colbert, amp=1)
+    inference = ModelInference(colbert, amp=-1)
 
     qbatch_text = get_queries(query_doc)
     print(f"#> Embedding {len(qbatch_text)} queries in parallel...")
-
+    qbatch_some = ['headache medicine']
+    Q = inference.queryFromText(qbatch_some, bsize = args.BATCHSIZE)
+    pids_rank = get_topk(Q, doc_tensor,doclens)
+    print(pids_rank)
+    exit()
     for i in range(len(qbatch_text) // args.BATCHSIZE):
-
         qbatch_some = qbatch_text[args.BATCHSIZE * i:args.BATCHSIZE * (i + 1)]
         Q = inference.queryFromText(qbatch_some, bsize = args.BATCHSIZE)
         pids_rank = get_topk(Q, doc_tensor,doclens)
